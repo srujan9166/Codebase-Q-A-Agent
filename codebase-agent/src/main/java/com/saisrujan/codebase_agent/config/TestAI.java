@@ -74,16 +74,16 @@ public class TestAI implements CommandLineRunner {
         System.out.println("Testing RAG Answer");
         System.out.println("==============================");
 
-        String question =
-                "Where is the code that scans Java files and how does it work?";
+        // String question =
+        //         "Where is the code that scans Java files and how does it work?";
 
-        String answer =
-                codebaseAgentService.askQuestion(question);
+        // String answer =
+        //         codebaseAgentService.askQuestion(question);
 
-        System.out.println("Question:");
-        System.out.println(question);
+        // System.out.println("Question:");
+        // System.out.println(question);
 
-        System.out.println("\nAI Answer:");
-        System.out.println(answer);
+        // System.out.println("\nAI Answer:");
+        // System.out.println(answer);
     }
 }

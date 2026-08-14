@@ -1,5 +1,7 @@
 package com.saisrujan.codebase_agent.service;
 
+import com.saisrujan.codebase_agent.dto.AskResponse;
+import com.saisrujan.codebase_agent.dto.Source;
 import com.saisrujan.codebase_agent.entity.CodeChunk;
 import com.saisrujan.codebase_agent.repository.CodeChunkRepository;
 
@@ -123,40 +125,48 @@ if (exists) {
                 .toList();
     }
 
-        public String askQuestion(String question) {
+        public AskResponse askQuestion(String question) {
 
-                 // 1. Retrieve relevant code chunks
-                List<CodeChunk> results = searchCodeChunks(question, 3);
+    // 1. Retrieve relevant code chunks
+    List<CodeChunk> results = searchCodeChunks(question, 3);
 
-                      // 2. Build context for Gemini
-                    StringBuilder context = new StringBuilder();
+    // 2. Build context for Gemini
+    StringBuilder context = new StringBuilder();
 
-                     for (CodeChunk chunk : results) {
-                        context.append("\n--- SOURCE ---\n");
-                        context.append("File: ")
-                               .append(chunk.getFilePath())
-                               .append("\n");
+    for (CodeChunk chunk : results) {
 
-                      context.append("Lines: ")
-                             .append(chunk.getStartLine())
-                             .append("-")
-                             .append(chunk.getEndLine())
-                             .append("\n");
+        context.append("\n--- SOURCE ---\n");
 
-                         context.append("Code:\n")
-                                .append(chunk.getContent())
-                                .append("\n");
-                    }
+        context.append("File: ")
+                .append(chunk.getFilePath())
+                .append("\n");
 
-                 // 3. Build RAG prompt
-                String prompt = """
+        context.append("Lines: ")
+                .append(chunk.getStartLine())
+                .append("-")
+                .append(chunk.getEndLine())
+                .append("\n");
+
+        context.append("Code:\n")
+                .append(chunk.getContent())
+                .append("\n");
+    }
+
+    // 3. Build RAG prompt
+    String prompt = """
             You are a codebase question-answering assistant.
 
             Answer the user's question using ONLY the provided code context.
 
-            Explain the answer clearly.
+            Explain the answer clearly and concisely.
 
-            Do not invent files, classes, methods, or line numbers.
+            IMPORTANT:
+            - Do not invent files, classes, methods, or code.
+            - Do not generate a Sources section.
+            - Do not generate file paths or line numbers.
+            - The application will attach the source citations separately.
+            - If the provided context does not contain enough information
+              to answer the question, clearly say so.
 
             User question:
             %s
@@ -165,35 +175,23 @@ if (exists) {
             %s
             """.formatted(question, context);
 
-            // 4. Ask Gemini
-           String answer = chatClient.prompt()
-        .user(prompt)
-        .call()
-        .content();
+    // 4. Ask Gemini
+    String answer = chatClient.prompt()
+            .user(prompt)
+            .call()
+            .content();
 
-StringBuilder finalResponse = new StringBuilder();
+    // 5. Build deterministic sources from retrieved chunks
+    List<Source> sources = results.stream()
+            .map(chunk -> new Source(
+                    chunk.getId(),
+                    chunk.getFilePath(),
+                    chunk.getStartLine(),
+                    chunk.getEndLine()
+            ))
+            .toList();
 
-finalResponse.append("AI Answer:\n");
-finalResponse.append(answer);
-
-finalResponse.append("\n\nSources:\n");
-
-int sourceNumber = 1;
-
-for (CodeChunk chunk : results) {
-
-    finalResponse.append(sourceNumber++)
-            .append(". ")
-            .append(chunk.getFilePath())
-            .append("\n");
-
-    finalResponse.append("   Lines: ")
-            .append(chunk.getStartLine())
-            .append("-")
-            .append(chunk.getEndLine())
-            .append("\n");
+    // 6. Return structured response
+    return new AskResponse(answer, sources);
 }
-
-return finalResponse.toString();
-        }
 }
