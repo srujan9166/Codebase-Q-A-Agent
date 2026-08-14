@@ -1,6 +1,8 @@
 package com.saisrujan.codebase_agent.config;
 
+import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.embedding.EmbeddingModel;
+import org.springframework.context.annotation.Bean;
 import org.springframework.stereotype.Component;
 
 
@@ -27,5 +29,10 @@ public class AiTestConfig {
         System.out.println(
             "=============================="
         );
+    }
+
+    @Bean
+    public ChatClient chatClient(ChatClient.Builder builder){
+        return builder.build();
     }
 }

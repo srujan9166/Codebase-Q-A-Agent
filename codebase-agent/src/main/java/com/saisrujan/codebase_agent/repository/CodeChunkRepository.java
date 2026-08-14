@@ -6,4 +6,9 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface CodeChunkRepository extends JpaRepository<CodeChunk, Long> {
+    boolean existsByFilePathAndStartLineAndEndLine(
+            String filePath,
+            Integer startLine,
+            Integer endLine
+    );
 }

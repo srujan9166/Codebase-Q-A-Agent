@@ -1,6 +1,5 @@
 package com.saisrujan.codebase_agent.entity;
 
-import com.saisrujan.codebase_agent.converter.VectorConverter;
 import jakarta.persistence.*;
 
 @Entity
@@ -29,14 +28,10 @@ public class CodeChunk {
     @Column(name = "end_line")
     private Integer endLine;
 
-    @Column(name = "embedding", columnDefinition = "text")
-    @Convert(converter = VectorConverter.class)
-    private float[] embedding;
-
     public CodeChunk() {
     }
 
-    public CodeChunk(Long id, String filePath, String chunkType, String chunkName, String content, Integer startLine, Integer endLine, float[] embedding) {
+    public CodeChunk(Long id, String filePath, String chunkType, String chunkName, String content, Integer startLine, Integer endLine) {
         this.id = id;
         this.filePath = filePath;
         this.chunkType = chunkType;
@@ -44,7 +39,6 @@ public class CodeChunk {
         this.content = content;
         this.startLine = startLine;
         this.endLine = endLine;
-        this.embedding = embedding;
     }
 
     public Long getId() {
@@ -103,13 +97,7 @@ public class CodeChunk {
         this.endLine = endLine;
     }
 
-    public float[] getEmbedding() {
-        return embedding;
-    }
 
-    public void setEmbedding(float[] embedding) {
-        this.embedding = embedding;
-    }
 
     @Override
     public String toString() {
@@ -136,7 +124,6 @@ public class CodeChunk {
         private String content;
         private Integer startLine;
         private Integer endLine;
-        private float[] embedding;
 
         public Builder id(Long id) {
             this.id = id;
@@ -173,13 +160,8 @@ public class CodeChunk {
             return this;
         }
 
-        public Builder embedding(float[] embedding) {
-            this.embedding = embedding;
-            return this;
-        }
-
         public CodeChunk build() {
-            return new CodeChunk(id, filePath, chunkType, chunkName, content, startLine, endLine, embedding);
+            return new CodeChunk(id, filePath, chunkType, chunkName, content, startLine, endLine);
         }
     }
 }
