@@ -33,6 +33,10 @@ public class CodebaseAgentService {
        
     }
 
+    public long getChunksCount() {
+        return codeChunkRepository.count();
+    }
+
     /**
      * Ingestion / Upload Process:
      * Saves relational data to standard tables, then creates a vector embedding

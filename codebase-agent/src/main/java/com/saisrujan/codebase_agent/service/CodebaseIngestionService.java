@@ -11,6 +11,8 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 
+import com.saisrujan.codebase_agent.dto.IngestionResponse;
+
 @Service
 public class CodebaseIngestionService {
 
@@ -80,5 +82,49 @@ public class CodebaseIngestionService {
                 System.out.println("Saved chunk ID: " + savedChunk.getId());
             }
         }
+    }
+
+    public IngestionResponse ingestProjectWithSummary(Path projectPath) throws IOException {
+        List<Path> files = fileScannerService.scan(projectPath);
+        
+        int filesDiscovered = files.size();
+        int filesProcessed = 0;
+        int chunksGenerated = 0;
+        int chunksInserted = 0;
+        int duplicatesSkipped = 0;
+
+        for (Path file : files) {
+            filesProcessed++;
+            String content = fileReaderService.read(file);
+            List<CodeChunk> chunks = codeChunker.chunkFileByLines(content, file.toString());
+            chunksGenerated += chunks.size();
+
+            for (CodeChunk chunk : chunks) {
+                CodeChunk savedChunk = codebaseAgentService.ingestCodeChunk(
+                        chunk.getFilePath(),
+                        chunk.getChunkType(),
+                        chunk.getChunkName(),
+                        chunk.getContent(),
+                        chunk.getStartLine(),
+                        chunk.getEndLine()
+                );
+
+                if (savedChunk == null) {
+                    duplicatesSkipped++;
+                    continue;
+                }
+                chunksInserted++;
+            }
+        }
+
+        return IngestionResponse.builder()
+                .status("COMPLETED")
+                .filesDiscovered(filesDiscovered)
+                .filesProcessed(filesProcessed)
+                .chunksGenerated(chunksGenerated)
+                .chunksInserted(chunksInserted)
+                .duplicatesSkipped(duplicatesSkipped)
+                .message("Codebase ingestion completed successfully")
+                .build();
     }
 }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Header from './components/Header';
 import QuestionInput from './components/QuestionInput';
 import AnswerCard from './components/AnswerCard';
@@ -6,7 +6,8 @@ import SourceCard from './components/SourceCard';
 import EmptyState from './components/EmptyState';
 import LoadingState from './components/LoadingState';
 import ErrorMessage from './components/ErrorMessage';
-import { askQuestion } from './services/api';
+import IngestionDashboard from './components/IngestionDashboard';
+import { askQuestion, checkIngestionStatus } from './services/api';
 import { MessageSquareCode, RefreshCw } from 'lucide-react';
 import './App.css';
 
@@ -19,6 +20,23 @@ export default function App() {
   const [hasAsked, setHasAsked] = useState(false);
   const [currentQuestion, setCurrentQuestion] = useState('');
   const [expandedSourceIndex, setExpandedSourceIndex] = useState(null);
+  const [isIndexed, setIsIndexed] = useState(true);
+  const [activeTab, setActiveTab] = useState('qa');
+
+  useEffect(() => {
+    const fetchStatus = async () => {
+      try {
+        const res = await checkIngestionStatus();
+        setIsIndexed(res.indexed);
+        if (!res.indexed) {
+          setActiveTab('ingest');
+        }
+      } catch (err) {
+        console.error("Error checking ingestion status:", err);
+      }
+    };
+    fetchStatus();
+  }, []);
 
   const handleSubmit = async () => {
     if (!question.trim() || loading) return;
@@ -61,10 +79,15 @@ export default function App() {
 
   return (
     <div className="app-container">
-      <Header />
+      <Header activeTab={activeTab} setActiveTab={setActiveTab} isIndexed={isIndexed} />
       
       <main className="main-content">
-        {!hasAsked ? (
+        {activeTab === 'ingest' ? (
+          <IngestionDashboard 
+            onIngestionSuccess={() => setIsIndexed(true)} 
+            onNavigateToQA={() => setActiveTab('qa')} 
+          />
+        ) : !hasAsked ? (
           <EmptyState onSelectSuggestion={handleSelectSuggestion} />
         ) : (
           <div className="results-container">
@@ -123,12 +146,25 @@ export default function App() {
 
       <div className="input-sticky-footer">
         <div className="footer-input-limiter">
-          <QuestionInput 
-            question={question} 
-            setQuestion={setQuestion} 
-            onSubmit={handleSubmit} 
-            loading={loading} 
-          />
+          {isIndexed ? (
+            <QuestionInput 
+              question={question} 
+              setQuestion={setQuestion} 
+              onSubmit={handleSubmit} 
+              loading={loading} 
+            />
+          ) : (
+            <div className="input-disabled-notice-card">
+              <span>Index a codebase to start asking questions.</span>
+              <button 
+                className="goto-ingest-btn-action" 
+                onClick={() => setActiveTab('ingest')}
+                type="button"
+              >
+                Go to Ingestion
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

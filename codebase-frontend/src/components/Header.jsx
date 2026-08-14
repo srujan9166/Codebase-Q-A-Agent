@@ -1,7 +1,7 @@
 import React from 'react';
 import { Terminal, Cpu } from 'lucide-react';
 
-export default function Header() {
+export default function Header({ activeTab, setActiveTab, isIndexed }) {
   return (
     <header className="app-header">
       <div className="header-left">
@@ -13,6 +13,26 @@ export default function Header() {
           <p className="subtitle">Ask questions about your codebase using AI-powered semantic search.</p>
         </div>
       </div>
+      
+      {isIndexed && (
+        <div className="header-tabs">
+          <button 
+            className={`header-tab-btn ${activeTab === 'qa' ? 'active' : ''}`}
+            onClick={() => setActiveTab('qa')}
+            type="button"
+          >
+            Ask Q&A
+          </button>
+          <button 
+            className={`header-tab-btn ${activeTab === 'ingest' ? 'active' : ''}`}
+            onClick={() => setActiveTab('ingest')}
+            type="button"
+          >
+            Ingest Codebase
+          </button>
+        </div>
+      )}
+
       <div className="header-right">
         <div className="status-indicator">
           <span className="status-dot"></span>
