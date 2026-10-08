@@ -17,6 +17,7 @@ import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.ai.vectorstore.VectorStore;
 
 @Service
@@ -24,13 +25,25 @@ public class CodebaseAgentService {
 
     private final CodeChunkRepository codeChunkRepository;
     private final VectorStore vectorStore;
-   private final ChatClient chatClient;
+    private final ChatClient chatClient;
+    private final JdbcTemplate jdbcTemplate;
 
-    public CodebaseAgentService(CodeChunkRepository codeChunkRepository, VectorStore vectorStore, ChatClient chatClient) {
+    public CodebaseAgentService(CodeChunkRepository codeChunkRepository, VectorStore vectorStore, ChatClient chatClient, JdbcTemplate jdbcTemplate) {
         this.codeChunkRepository = codeChunkRepository;
         this.vectorStore = vectorStore;
         this.chatClient = chatClient;
-       
+        this.jdbcTemplate = jdbcTemplate;
+    }
+
+    @Transactional
+    public void clearAllData() {
+        codeChunkRepository.deleteAll();
+        try {
+            jdbcTemplate.execute("TRUNCATE TABLE vector_store");
+            System.out.println("Cleared previous vector_store and code_chunk database entries.");
+        } catch (Exception e) {
+            System.err.println("Could not truncate vector_store table: " + e.getMessage());
+        }
     }
 
     public long getChunksCount() {
@@ -73,7 +86,7 @@ if (exists) {
         
         CodeChunk savedChunk = codeChunkRepository.save(codeChunk);
         
-        // Step 2: Create a Spring AI Document with the relational ID in metadata
+        // Step 2: Create a Spring AI Document with file header and relational ID in metadata
         Map<String, Object> metadata = Map.of(
             "code_chunk_id", savedChunk.getId(),
             "file_path", filePath,
@@ -81,7 +94,8 @@ if (exists) {
             "chunk_name", chunkName
         );
         
-        Document document = new Document(content, metadata);
+        String embeddingContent = "File: " + filePath + "\nLines: " + startLine + "-" + endLine + "\n" + content;
+        Document document = new Document(embeddingContent, metadata);
         
         // Step 3: Add to VectorStore (will invoke Gemini embedding API and save it)
         vectorStore.add(List.of(document));
@@ -131,8 +145,8 @@ if (exists) {
 
         public AskResponse askQuestion(String question) {
 
-    // 1. Retrieve relevant code chunks
-    List<CodeChunk> results = searchCodeChunks(question, 3);
+    // 1. Retrieve relevant code chunks (top 5 for broader context)
+    List<CodeChunk> results = searchCodeChunks(question, 5);
 
     // 2. Build context for Gemini
     StringBuilder context = new StringBuilder();

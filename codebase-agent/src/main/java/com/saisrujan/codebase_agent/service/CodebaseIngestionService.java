@@ -85,6 +85,9 @@ public class CodebaseIngestionService {
     }
 
     public IngestionResponse ingestProjectWithSummary(Path projectPath) throws IOException {
+        // Clear previous codebase chunks & embeddings before ingesting new codebase
+        codebaseAgentService.clearAllData();
+
         List<Path> files = fileScannerService.scan(projectPath);
         
         int filesDiscovered = files.size();
@@ -96,7 +99,11 @@ public class CodebaseIngestionService {
         for (Path file : files) {
             filesProcessed++;
             String content = fileReaderService.read(file);
-            List<CodeChunk> chunks = codeChunker.chunkFileByLines(content, file.toString());
+            
+            Path relativePath = projectPath.relativize(file);
+            String displayFilePath = relativePath.toString().replace('\\', '/');
+
+            List<CodeChunk> chunks = codeChunker.chunkFileByLines(content, displayFilePath);
             chunksGenerated += chunks.size();
 
             for (CodeChunk chunk : chunks) {

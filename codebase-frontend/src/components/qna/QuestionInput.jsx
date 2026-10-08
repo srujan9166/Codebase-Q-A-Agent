@@ -39,7 +39,7 @@ export default function QuestionInput({ question, setQuestion, onSubmit, loading
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask a question about your codebase..."
+            placeholder="Ask anything about your codebase (e.g. Where is authentication implemented?)..."
             disabled={loading}
             className="question-textarea"
           />
