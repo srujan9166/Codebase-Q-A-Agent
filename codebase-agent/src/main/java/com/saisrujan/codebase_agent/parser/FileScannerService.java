@@ -22,18 +22,25 @@ public class FileScannerService {
 
     private static final Set<String> IGNORED_DIRECTORIES = Set.of(
             "node_modules", ".git", "__pycache__", ".next", "vendor",
-            ".idea", ".vscode"
+            ".idea", ".vscode", "target", "build", "dist", ".gradle",
+            "bin", "out", ".mvn", ".settings"
+    );
+
+    private static final Set<String> IGNORED_FILES = Set.of(
+            "package-lock.json", "yarn.lock", "pnpm-lock.yaml", "composer.lock"
     );
 
     public List<Path> scan(Path rootPath) throws IOException {
         System.out.println("Scanning directory for files: " + rootPath);
         try (Stream<Path> stream = Files.walk(rootPath)) {
             List<Path> allFiles = stream.filter(Files::isRegularFile).toList();
-            System.out.println("Total raw files found in ZIP: " + allFiles.size());
+            System.out.println("Total raw files found: " + allFiles.size());
 
             List<Path> matched = allFiles.stream()
                     .filter(p -> !isIgnoredDirectory(rootPath, p))
                     .filter(this::isSupportedExtension)
+                    .filter(this::isNotIgnoredFile)
+                    .filter(this::isReasonableSize)
                     .toList();
 
             System.out.println("Total supported code files matched for ingestion: " + matched.size());
@@ -72,5 +79,18 @@ public class FileScannerService {
     private boolean isSupportedExtension(Path file) {
         String fileName = file.getFileName().toString().toLowerCase();
         return ALLOWED_EXTENSIONS.stream().anyMatch(fileName::endsWith);
+    }
+
+    private boolean isNotIgnoredFile(Path file) {
+        String fileName = file.getFileName().toString().toLowerCase();
+        return !IGNORED_FILES.contains(fileName) && !fileName.endsWith(".min.js") && !fileName.endsWith(".min.css");
+    }
+
+    private boolean isReasonableSize(Path file) {
+        try {
+            return Files.size(file) <= 300 * 1024; // Skip files larger than 300KB
+        } catch (IOException e) {
+            return false;
+        }
     }
 }

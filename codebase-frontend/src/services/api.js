@@ -35,3 +35,32 @@ export async function uploadCodebase(file) {
 
   return response.json();
 }
+
+export async function ingestGitCodebase(repoUrl, branch) {
+  const baseUrl = import.meta.env.VITE_API_BASE_URL || '';
+  let response;
+  try {
+    response = await fetch(`${baseUrl}/api/ingest/git`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ repoUrl, branch }),
+    });
+  } catch (error) {
+    console.error("Network error during git ingestion:", error);
+    throw new Error("Unable to connect to backend. Make sure the Spring Boot application is running.");
+  }
+
+  if (!response.ok) {
+    let errMsg = "Git repository ingestion failed.";
+    try {
+      const errData = await response.json();
+      if (errData.message) errMsg = errData.message;
+    } catch (e) {}
+    throw new Error(errMsg);
+  }
+
+  return response.json();
+}
+

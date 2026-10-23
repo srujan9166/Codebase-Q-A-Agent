@@ -81,6 +81,43 @@ public class IngestionService {
         }
     }
 
+    public IngestionResponse ingestGitRepo(String repoUrl, String branch) throws IOException {
+        if (repoUrl == null || repoUrl.isBlank()) {
+            throw new IllegalArgumentException("Repository URL cannot be empty.");
+        }
+
+        String trimmedUrl = repoUrl.trim();
+        if (!trimmedUrl.startsWith("http://") && !trimmedUrl.startsWith("https://") && !trimmedUrl.startsWith("git@")) {
+            throw new IllegalArgumentException("Invalid Git repository URL. Must start with http://, https://, or git@");
+        }
+
+        Path tempDir = Files.createTempDirectory("codebase-git-");
+        System.out.println("Cloning Git repository " + trimmedUrl + " into " + tempDir);
+
+        try {
+            org.eclipse.jgit.api.CloneCommand cloneCommand = org.eclipse.jgit.api.Git.cloneRepository()
+                    .setURI(trimmedUrl)
+                    .setDirectory(tempDir.toFile())
+                    .setCloneAllBranches(false)
+                    .setDepth(1); // Shallow clone: only fetch latest commit snapshot
+
+            if (branch != null && !branch.isBlank()) {
+                cloneCommand.setBranch(branch.trim());
+            }
+
+            try (org.eclipse.jgit.api.Git git = cloneCommand.call()) {
+                System.out.println("Git clone completed successfully: " + git.getRepository().getBranch());
+            } catch (Exception e) {
+                throw new IOException("Failed to clone Git repository: " + e.getMessage(), e);
+            }
+
+            return codebaseIngestionService.ingestProjectWithSummary(tempDir);
+
+        } finally {
+            deleteDirectory(tempDir);
+        }
+    }
+
     private void deleteDirectory(Path path) {
         if (path == null || !Files.exists(path)) {
             return;
@@ -89,9 +126,13 @@ public class IngestionService {
             Files.walk(path)
                 .sorted((a, b) -> b.compareTo(a)) // Delete descendants first
                 .map(Path::toFile)
-                .forEach(File::delete);
+                .forEach(file -> {
+                    file.setWritable(true);
+                    file.delete();
+                });
         } catch (IOException e) {
             System.err.println("Failed to clean up temp directory " + path + ": " + e.getMessage());
         }
     }
 }
+

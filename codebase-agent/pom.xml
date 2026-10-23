@@ -54,7 +54,7 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-webmvc</artifactId>
 		</dependency>
-
+		
 	
 
 		<dependency>
@@ -116,6 +116,24 @@
     <groupId>org.springframework.ai</groupId>
     <artifactId>spring-ai-starter-vector-store-pgvector</artifactId>
 </dependency>
+<dependency>
+    <groupId>org.eclipse.jgit</groupId>
+    <artifactId>org.eclipse.jgit</artifactId>
+    <version>6.10.0.202406032230-r</version>
+</dependency>
+
+<!-- Correct -->
+<dependency>
+    <groupId>org.springframework.ai</groupId>
+    <artifactId>spring-ai-starter-mcp-server-webmvc</artifactId>
+</dependency>
+
+<dependency>
+    <groupId>com.github.javaparser</groupId>
+    <artifactId>javaparser-core</artifactId>
+    <version>3.26.3</version>
+</dependency>
+
 
 
 	</dependencies>

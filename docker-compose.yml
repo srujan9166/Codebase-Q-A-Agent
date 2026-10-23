@@ -1,0 +1,63 @@
+services:
+  # ==========================================
+  # 1. Database: PostgreSQL 16 + pgvector
+  # ==========================================
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: codebase-db
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      # Expose to host so you can inspect DB from DBeaver / pgAdmin if needed
+      - "5432:5432"
+    volumes:
+      # Named volume so database data persists when container is restarted
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ==========================================
+  # 2. Backend: Spring Boot Java 21 Agent
+  # ==========================================
+  backend:
+    build:
+      context: ./codebase-agent
+      dockerfile: Dockerfile
+    container_name: codebase-backend
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${POSTGRES_DB}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      GCP_PROJECT_ID: ${GCP_PROJECT_ID}
+      GCP_LOCATION: ${GCP_LOCATION}
+    ports:
+      - "8080:8080"
+
+  # ==========================================
+  # 3. Frontend: React 19 + Vite + Nginx
+  # ==========================================
+  frontend:
+    build:
+      context: ./codebase-frontend
+      dockerfile: Dockerfile
+    container_name: codebase-frontend
+    restart: always
+    depends_on:
+      - backend
+    ports:
+      # Maps your computer's port 80 to Nginx port 80
+      - "80:80"
+
+volumes:
+  pgdata:

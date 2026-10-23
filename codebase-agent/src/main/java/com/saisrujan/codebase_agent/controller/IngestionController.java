@@ -47,4 +47,21 @@ public class IngestionController {
                     .body(Map.of("message", "Ingestion failed: " + e.getMessage()));
         }
     }
+
+    @PostMapping("/ingest/git")
+    public ResponseEntity<?> ingestGitCodebase(@jakarta.validation.Valid @RequestBody com.saisrujan.codebase_agent.dto.GitIngestRequest request) {
+        try {
+            IngestionResponse response = ingestionService.ingestGitRepo(request.getRepoUrl(), request.getBranch());
+            return ResponseEntity.ok(response);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity
+                    .status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("message", e.getMessage()));
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity
+                    .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("message", "Git ingestion failed: " + e.getMessage()));
+        }
+    }
 }

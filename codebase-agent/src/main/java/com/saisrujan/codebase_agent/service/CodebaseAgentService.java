@@ -104,6 +104,87 @@ if (exists) {
     }
 
     /**
+     * Batch Ingestion:
+     * Saves chunks to PostgreSQL in batch, groups documents into batches of 25,
+     * and sends to Gemini with rate-limit pacing and exponential backoff retry.
+     */
+    @Transactional
+    public List<CodeChunk> ingestCodeChunksBatch(List<CodeChunk> chunks) {
+        if (chunks == null || chunks.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        // 1. Save all relational code chunk entities in batch
+        List<CodeChunk> savedChunks = codeChunkRepository.saveAll(chunks);
+
+        // 2. Build Spring AI Document list
+        List<Document> documents = new ArrayList<>(savedChunks.size());
+        for (CodeChunk chunk : savedChunks) {
+            Map<String, Object> metadata = Map.of(
+                    "code_chunk_id", chunk.getId(),
+                    "file_path", chunk.getFilePath(),
+                    "chunk_type", chunk.getChunkType() != null ? chunk.getChunkType() : "CODE_CHUNK",
+                    "chunk_name", chunk.getChunkName() != null ? chunk.getChunkName() : ""
+            );
+
+            String embeddingContent = "File: " + chunk.getFilePath() + "\nLines: " + chunk.getStartLine() + "-" + chunk.getEndLine() + "\n" + chunk.getContent();
+            documents.add(new Document(embeddingContent, metadata));
+        }
+
+        // 3. Batch vector embeddings (25 documents per Gemini API call)
+        int batchSize = 25;
+        int totalBatches = (int) Math.ceil((double) documents.size() / batchSize);
+        System.out.println("Embedding " + documents.size() + " documents in " + totalBatches + " batch(es) of max " + batchSize + "...");
+
+        for (int i = 0; i < documents.size(); i += batchSize) {
+            int end = Math.min(i + batchSize, documents.size());
+            List<Document> batch = documents.subList(i, end);
+            int currentBatchNum = (i / batchSize) + 1;
+            System.out.println("Processing embedding batch " + currentBatchNum + "/" + totalBatches + " (" + batch.size() + " chunks)...");
+            addDocumentsWithRetry(batch);
+        }
+
+        return savedChunks;
+    }
+
+    private void addDocumentsWithRetry(List<Document> batch) {
+        int maxRetries = 5;
+        long waitTimeMs = 3000;
+
+        for (int attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                vectorStore.add(batch);
+                // Slight throttle delay to stay comfortably under Gemini free tier RPM limit
+                Thread.sleep(400);
+                return;
+            } catch (Exception e) {
+                boolean isQuota = isQuotaOrRateLimitError(e);
+                if (isQuota && attempt < maxRetries) {
+                    System.err.println("Gemini rate limit (429) hit. Pausing for " + (waitTimeMs / 1000) + "s before retry (Attempt " + attempt + "/" + maxRetries + ")...");
+                    try {
+                        Thread.sleep(waitTimeMs);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw new RuntimeException("Thread interrupted during rate limit backoff", ie);
+                    }
+                    waitTimeMs *= 2; // Exponential backoff: 3s -> 6s -> 12s -> 24s
+                } else {
+                    throw new RuntimeException("Vector store embedding failed: " + e.getMessage(), e);
+                }
+            }
+        }
+    }
+
+    private boolean isQuotaOrRateLimitError(Throwable throwable) {
+        if (throwable == null) return false;
+        String msg = String.valueOf(throwable.getMessage()).toLowerCase();
+        if (msg.contains("429") || msg.contains("503") || msg.contains("resource_exhausted") || msg.contains("quota") || msg.contains("rate limit") || msg.contains("too many requests") || msg.contains("high demand") || msg.contains("unavailable")) {
+            return true;
+        }
+        return isQuotaOrRateLimitError(throwable.getCause());
+    }
+
+    /**
      * Search / Query Process:
      * Does a vector similarity search, extracts referenced IDs from metadata,
      * and fetches original entities from the relational database.
@@ -193,11 +274,33 @@ if (exists) {
             %s
             """.formatted(question, context);
 
-    // 4. Ask Gemini
-    String answer = chatClient.prompt()
-            .user(prompt)
-            .call()
-            .content();
+    // 4. Ask Gemini with automatic retry for transient 503/429 errors
+    String answer = null;
+    int maxRetries = 3;
+    long backoffMs = 1500;
+
+    for (int attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            answer = chatClient.prompt()
+                    .user(prompt)
+                    .call()
+                    .content();
+            break;
+        } catch (Exception e) {
+            if (isQuotaOrRateLimitError(e) && attempt < maxRetries) {
+                System.err.println("Gemini 503/429 transient error on attempt " + attempt + "/" + maxRetries + ". Retrying in " + (backoffMs / 1000.0) + "s...");
+                try {
+                    Thread.sleep(backoffMs);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException("Thread interrupted during retry", ie);
+                }
+                backoffMs *= 2;
+            } else {
+                throw e;
+            }
+        }
+    }
 
     // 5. Build deterministic sources from retrieved chunks
     List<Source> sources = results.stream()

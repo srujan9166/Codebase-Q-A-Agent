@@ -1,35 +1,34 @@
 package com.saisrujan.codebase_agent.service;
 
+import com.saisrujan.codebase_agent.dto.IngestionResponse;
 import com.saisrujan.codebase_agent.entity.CodeChunk;
-import com.saisrujan.codebase_agent.parser.CodeChunker;
 import com.saisrujan.codebase_agent.parser.FileReaderService;
 import com.saisrujan.codebase_agent.parser.FileScannerService;
-
+import com.saisrujan.codebase_agent.parser.JavaAstChunker;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
-
-import com.saisrujan.codebase_agent.dto.IngestionResponse;
 
 @Service
 public class CodebaseIngestionService {
 
     private final FileScannerService fileScannerService;
     private final FileReaderService fileReaderService;
-    private final CodeChunker codeChunker;
+    private final JavaAstChunker javaAstChunker;
     private final CodebaseAgentService codebaseAgentService;
 
     public CodebaseIngestionService(
             FileScannerService fileScannerService,
             FileReaderService fileReaderService,
-            CodeChunker codeChunker,
+            JavaAstChunker javaAstChunker,
             CodebaseAgentService codebaseAgentService) {
 
         this.fileScannerService = fileScannerService;
         this.fileReaderService = fileReaderService;
-        this.codeChunker = codeChunker;
+        this.javaAstChunker = javaAstChunker;
         this.codebaseAgentService = codebaseAgentService;
     }
 
@@ -48,9 +47,9 @@ public class CodebaseIngestionService {
             // 3. Read complete file
             String content = fileReaderService.read(file);
 
-            // 4. Convert file into chunks
+            // 4. Convert file into AST chunks
             List<CodeChunk> chunks =
-                    codeChunker.chunkFileByLines(
+                    javaAstChunker.chunkFile(
                             content,
                             file.toString()
                     );
@@ -96,6 +95,8 @@ public class CodebaseIngestionService {
         int chunksInserted = 0;
         int duplicatesSkipped = 0;
 
+        List<CodeChunk> allChunks = new ArrayList<>();
+
         for (Path file : files) {
             filesProcessed++;
             String content = fileReaderService.read(file);
@@ -103,26 +104,17 @@ public class CodebaseIngestionService {
             Path relativePath = projectPath.relativize(file);
             String displayFilePath = relativePath.toString().replace('\\', '/');
 
-            List<CodeChunk> chunks = codeChunker.chunkFileByLines(content, displayFilePath);
+            List<CodeChunk> chunks = javaAstChunker.chunkFile(content, displayFilePath);
             chunksGenerated += chunks.size();
-
-            for (CodeChunk chunk : chunks) {
-                CodeChunk savedChunk = codebaseAgentService.ingestCodeChunk(
-                        chunk.getFilePath(),
-                        chunk.getChunkType(),
-                        chunk.getChunkName(),
-                        chunk.getContent(),
-                        chunk.getStartLine(),
-                        chunk.getEndLine()
-                );
-
-                if (savedChunk == null) {
-                    duplicatesSkipped++;
-                    continue;
-                }
-                chunksInserted++;
-            }
+            allChunks.addAll(chunks);
         }
+
+        System.out.println("Total files processed: " + filesProcessed + ", total chunks: " + chunksGenerated + ". Starting batch embedding...");
+
+        // Ingest all chunks in efficient batches with retry & backoff
+        List<CodeChunk> savedChunks = codebaseAgentService.ingestCodeChunksBatch(allChunks);
+        chunksInserted = savedChunks.size();
+        duplicatesSkipped = chunksGenerated - chunksInserted;
 
         return IngestionResponse.builder()
                 .status("COMPLETED")
