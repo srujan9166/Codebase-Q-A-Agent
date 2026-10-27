@@ -1,0 +1,54 @@
+services:
+  # ==========================================
+  # 1. Database: PostgreSQL 16 + pgvector
+  # ==========================================
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: prod-codebase-db
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - prod_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ==========================================
+  # 2. Backend: Pulled directly from GHCR!
+  # ==========================================
+  backend:
+    image: ghcr.io/srujan9166/codebase-backend:latest
+    container_name: prod-codebase-backend
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${POSTGRES_DB}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      GCP_PROJECT_ID: ${GCP_PROJECT_ID}
+      GCP_LOCATION: ${GCP_LOCATION}
+    ports:
+      - "8080:8080"
+
+  # ==========================================
+  # 3. Frontend: Pulled directly from GHCR!
+  # ==========================================
+  frontend:
+    image: ghcr.io/srujan9166/codebase-frontend:latest
+    container_name: prod-codebase-frontend
+    restart: always
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+
+volumes:
+  prod_pgdata:

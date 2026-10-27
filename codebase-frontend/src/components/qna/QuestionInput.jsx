@@ -39,14 +39,25 @@ export default function QuestionInput({ question, setQuestion, onSubmit, loading
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask anything about your codebase (e.g. Where is authentication implemented?)..."
+            placeholder="Ask anything about your codebase (e.g. Where is database connection configured?)..."
             disabled={loading}
             className="question-textarea"
           />
-          <div className="input-hint">
+          
+          <div className="input-actions-row">
+            {question.trim() && !loading && (
+              <button
+                type="button"
+                className="clear-input-btn"
+                onClick={() => setQuestion('')}
+                title="Clear input"
+              >
+                Clear
+              </button>
+            )}
             <span className="keyboard-shortcut">
-              <CornerDownLeft size={10} />
-              Ctrl+Enter to ask
+              <CornerDownLeft size={11} />
+              <span>Ctrl + Enter</span>
             </span>
           </div>
         </div>
@@ -59,12 +70,12 @@ export default function QuestionInput({ question, setQuestion, onSubmit, loading
           {loading ? (
             <>
               <Loader className="spinner" size={16} />
-              <span>Analyzing codebase...</span>
+              <span>Searching code...</span>
             </>
           ) : (
             <>
               <Sparkles size={16} />
-              <span>Ask Question</span>
+              <span>Ask AI</span>
             </>
           )}
         </button>

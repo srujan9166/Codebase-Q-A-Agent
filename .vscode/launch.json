@@ -15,7 +15,8 @@
             "name": "CodebaseAgentApplication",
             "request": "launch",
             "mainClass": "com.saisrujan.codebase_agent.CodebaseAgentApplication",
-            "projectName": "codebase-agent"
+            "projectName": "codebase-agent",
+            "envFile": "${workspaceFolder}/.env"
         },
         {
             "type": "java",
